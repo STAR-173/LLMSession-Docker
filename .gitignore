@@ -1,0 +1,26 @@
+# --- Security: Secrets & Credentials ---
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- Docker & Persistence ---
+session_data/
+output/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
