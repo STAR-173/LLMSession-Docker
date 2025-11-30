@@ -1,9 +1,8 @@
 import logging
-import shutil
-import os
 import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status
-from app.models import GenerateRequest, GenerateResponse, GenericResponse
+from app.models import GenerateRequest, GenerateResponse, GenericResponse, Provider
 from app.session_manager import SessionManager
 
 # Setup Logging
@@ -13,38 +12,47 @@ logging.basicConfig(
 )
 logger = logging.getLogger("LLM-API")
 
-SESSION_DIR = "/root/.local/share/LLMSession"
-
-app = FastAPI(title="LLM Session Service")
-
 # Initialize Singleton Manager
 manager = SessionManager()
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Executes on Container Startup.
+    Triggers parallel login sequences.
+    """
+    logger.info("--- SERVICE STARTING ---")
+    
+    # Run the parallel startup (it waits for all browsers to close before continuing)
+    await manager.start_providers()
+    
+    yield
+    
+    logger.info("--- SERVICE SHUTTING DOWN ---")
+
+app = FastAPI(title="LLM Session Service", lifespan=lifespan)
+
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "service": "llm-session-api"}
+    return {"status": "ok", "providers": list(manager.workers.keys())}
 
 @app.post("/generate", response_model=GenerateResponse)
 async def generate_content(payload: GenerateRequest):
-    """
-    Sends prompt to the persistent background browser.
-    Context is maintained between requests.
-    """
     try:
-        creds = {
-            "email": os.environ.get("CHATGPT_EMAIL"),
-            "password": os.environ.get("CHATGPT_PASSWORD"),
-            "method": "email" 
-        }
-
-        if not creds["email"] or not creds["password"]:
-            raise HTTPException(status_code=500, detail="Missing credentials.")
-
-        # Send to manager (waits for queue)
-        response = await manager.generate(payload.prompt, creds)
+        provider_key = payload.provider.value
+        logger.info(f"Request: {provider_key}")
         
-        return GenerateResponse(**response)
+        response = await manager.generate(provider_key, payload.prompt)
+        
+        return GenerateResponse(
+            provider=provider_key, 
+            status=response["status"],
+            mode=response["mode"],
+            result=response["result"]
+        )
 
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logger.error(f"Request Failed: {e}", exc_info=True)
         raise HTTPException(
@@ -52,20 +60,14 @@ async def generate_content(payload: GenerateRequest):
             detail=f"Automation failed: {str(e)}"
         )
 
-@app.delete("/session", response_model=GenericResponse)
-async def delete_session():
+@app.delete("/session/{provider}", response_model=GenericResponse)
+async def delete_session(provider: Provider):
     """
-    Closes the current browser instance to free memory/reset state.
-    Does NOT delete the persistent login cookies (session_data).
+    Closes the specific provider's browser.
     """
     try:
-        logger.info("Received request to close browser session...")
-        
-        # This will call bot.close() in the background thread
-        # It closes the window/process but keeps the User Data Directory intact
-        await manager.reset()
-
-        return GenericResponse(message="Browser instance closed. Persistence files preserved.")
+        await manager.reset_provider(provider.value)
+        return GenericResponse(message=f"{provider.value} browser closed.")
             
     except Exception as e:
         logger.error(f"Failed to close session: {e}")

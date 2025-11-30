@@ -7,10 +7,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     XDG_DATA_HOME=/root/.local/share
 
-# Install System Dependencies + VNC Server (x11vnc)
+# Install System Dependencies (Xvfb is kept for headless=False execution)
 RUN apt-get update && apt-get install -y \
     xvfb \
-    x11vnc \
     curl \
     build-essential \
     libgtk-3-0 \
@@ -44,6 +43,5 @@ RUN mkdir -p /root/.local/share/LLMSession
 RUN mkdir -p /app/output
 
 EXPOSE 8000
-EXPOSE 5900
 
 ENTRYPOINT ["./scripts/start.sh"]

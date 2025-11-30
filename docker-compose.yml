@@ -10,13 +10,12 @@ services:
     environment:
       - XDG_DATA_HOME=/root/.local/share
     volumes:
-      # Persistence
-      - ./session_data:/root/.local/share/LLMSession
+      # Persistence (Named Volume)
+      - llm_session_data:/root/.local/share/LLMSession
       # Error Screenshots
       - ./output:/app/output
     ports:
       - "8080:8000"
-      - "5900:5900" # VNC Port
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -26,4 +25,7 @@ services:
       resources:
         limits:
           cpus: '2.0'
-          memory: 2G
+          memory: 4G
+
+volumes:
+  llm_session_data:

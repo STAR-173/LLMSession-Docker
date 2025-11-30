@@ -1,8 +1,19 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import List, Union, Optional
+from enum import Enum
+
+class Provider(str, Enum):
+    CHATGPT = "chatgpt"
+    CLAUDE = "claude"
+    AISTUDIO = "aistudio"
 
 class GenerateRequest(BaseModel):
-    # Polymorphic field: Accept String (Single) OR List[String] (Chain)
+    # Select which bot to use
+    provider: Provider = Field(
+        default=Provider.CHATGPT,
+        description="The LLM provider to use (chatgpt, claude, aistudio)."
+    )
+    
     prompt: Union[str, List[str]] = Field(
         ..., 
         description="Send a string for a single prompt, or a list of strings for a chained conversation."
@@ -10,9 +21,9 @@ class GenerateRequest(BaseModel):
 
 class GenerateResponse(BaseModel):
     status: str
-    mode: str  # "single" or "chain"
+    provider: str
+    mode: str
     result: Union[str, List[str]]
-    session_id: str = "default"
 
 class GenericResponse(BaseModel):
     message: str
